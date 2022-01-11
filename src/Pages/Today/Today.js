@@ -1,0 +1,193 @@
+import * as dayjs from 'dayjs'
+import styled from 'styled-components'
+import { Checkmark } from 'react-ionicons'
+import { useContext, useEffect, useState } from 'react'
+import Swal from 'sweetalert2'; 
+
+import NotLogged from '../Error/NotLogged'
+import { getTodayHabits, changeHabitState } from '../../Services/Api'
+import UserContext from '../../Context/Context';
+
+import Topbar from '../../Components/Topbar/Topbar'
+import Footer from '../../Components/Footer/Footer'
+
+
+function CheckLoggedToday() {
+    const {logged} = useContext(UserContext);
+    if(logged) {
+        return(
+            <Today />
+        )
+    }
+    else {
+        return(
+            <NotLogged />
+        )
+    }
+}
+
+function Today() {
+    require('dayjs/locale/pt-br')
+    const date = dayjs().locale('pt-br').format('dddd, DD/MM')
+    const {userInfo, dayProgress} = useContext(UserContext);
+    const token = userInfo.token
+    const [habits, setHabits] = useState([]);
+    let pointsPerHabit;
+
+    habits.length !== 0 ? pointsPerHabit = 100 / habits.length : pointsPerHabit = 0;
+
+    useEffect(() => {
+        getTodayHabits(token)
+        .then((response) => {setHabits(response.data)})
+        .catch(() => {
+            Swal.fire({
+                icon: 'error',
+                title: 'Oops...',
+                text: 'Alguma coisa deu errado, tente novamente mais tarde',
+            })
+        });
+	}, [token]);
+
+    return(
+        <Main>
+            <Topbar />
+            <TodayDiv>
+                <P>{date}</P>
+                <HabitPercentage color={dayProgress !== 0 ? 1 : 0}>
+                    {dayProgress !== 0 ? `${dayProgress.toFixed(0)}% dos hábitos concluídos` : 'Nenhum hábito concluído ainda'}
+                </HabitPercentage>
+
+                {habits.map((habit, index) => <UserHabit title={habit.name} habitSpree={habit.currentSequence} habitRecord={habit.highestSequence} id={habit.id} key={index} habitDone={habit.done} pointsPerHabit={pointsPerHabit} />)}
+            </TodayDiv>
+            <Footer />
+        </Main>
+    )
+}
+
+function UserHabit({title, habitSpree, habitRecord, id, habitDone, pointsPerHabit}) {
+    const [done, setDone] = useState(habitDone);
+    let [spree, setSpree] = useState(habitSpree);
+    let [record, setRecord] = useState(habitRecord);
+    const {userInfo, dayProgress, setDayProgress} = useContext(UserContext);
+
+    function uncheck() {
+        setRecord(record - 1)
+        setSpree(spree - 1);
+        if (dayProgress - pointsPerHabit <= 0) {
+            setDayProgress(0)
+        }
+        else {
+            setDayProgress(dayProgress - pointsPerHabit);
+        }
+    }
+
+    function check() {
+        if (record === spree) {
+            setRecord(record + 1)
+        }
+        setSpree(spree + 1);
+        setDayProgress(dayProgress + pointsPerHabit);
+    }
+
+    function ChangeHabit(token, id) {
+        if (!done) {
+            changeHabitState(token, id, 'check');
+            setDone(true);
+            check();
+        }
+        else {
+            changeHabitState(token, id, 'uncheck');
+            setDone(false);
+            uncheck();
+        }
+    }
+
+    return (
+        <Habit>
+            <Wrapper>
+                <HabitTitle>{title}</HabitTitle>
+                <HabitDescription>Sequencia atual: <Span done={done ? 1 : 0}>{spree} {spree > 1 ? 'dias' : 'dia'}</Span></HabitDescription>
+                <HabitDescription>Seu recorde: <Span done={spree === record && record !== 0 && done !== false}>{record} {spree > 1 ? 'dias' : 'dia'}</Span></HabitDescription>
+            </Wrapper>
+            <HabitButton onClick={() => ChangeHabit(userInfo.token, id)} done={done}>
+                <Checkmark
+                    color={'#ffffff'} 
+                    title={''}
+                    height="60px"
+                    width="60px"
+                />
+            </HabitButton>
+        </Habit>
+    )
+}
+
+const Main = styled.div`
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: #F2F2F2;
+`
+
+const TodayDiv = styled.div`
+    width: 92%;
+    padding-top: 98px;
+`
+
+const P = styled.p`
+    font-size: 23px;
+    color: #126BA5;
+`
+const HabitPercentage = styled.p`
+    margin: 10px 0px 30px 0px;
+    font-size: 18px;
+    color: ${props => props.color ? '#8FC549' : '#BABABA'};
+`
+
+const Habit = styled.div`
+    width: 100%;
+    height: 95px;
+    padding: 0px 15px;
+    background: #FFFFFF;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+`
+
+const Wrapper = styled.div`
+    display: flex;
+    flex-direction: column;
+`
+
+const HabitTitle = styled.p`
+    font-size: 20;
+    color: #666666;
+    margin-bottom: 10px;
+`
+
+const HabitDescription = styled.p`
+    font-size: 13px;
+    color: #666666;
+    margin-bottom: 5px;
+`
+
+const Span = styled.span`
+    color: ${props => props.done ? '#8FC549' : '#666666'};
+`
+
+const HabitButton = styled.button`
+    height: 69px;
+    width: 69px;
+    margin: 0px;
+    border-radius: 5px;
+    border: 0px;
+    background-color: ${props => props.done ? '#8FC549' : '#EBEBEB'};
+    border: 0px;
+    font-weight: bold;
+    font-family: 'Lexend Deca';
+`
+
+export default CheckLoggedToday
